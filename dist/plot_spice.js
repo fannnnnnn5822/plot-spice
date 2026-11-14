@@ -1,4 +1,4 @@
-/* 🎀 微醺特调 v0.3.1 · by fannnnnnn · https://github.com/fannnnnnn5822/plot-spice */
+/* 🎀 微醺特调 v0.3.2 · by fannnnnnn · https://github.com/fannnnnnn5822/plot-spice */
 (function () {
 'use strict';
 // 🧂 加料词库 + 狗血技能文本：从 🦝酒馆小狸Live 0.1.44 原样搬来（源头＝fannnnnnn 的第一本世界书 PLOT_DIRECTOR + 男二上位 / 古早修罗场两本）。
@@ -1219,7 +1219,7 @@ var CUSTOM_FIELDS = [
          常驻 → 一条持续注入 depth 1；余波 → depth 4，正文写完一层倒数一格
    重 roll：揭晓后记 last（料 + 楼层号），对同一楼重抽 / 滑动时把同一味料再塞一次
    ================================================================ */
-var VERSION = '0.3.1';
+var VERSION = '0.3.2';
 var NS = 'fxsp';
 var TITLE = '🎀 微醺特调';
 var VAR_KEY = 'fxspice', SET_KEY = 'fxspice_settings';
@@ -1388,19 +1388,38 @@ function slotSet(n, fn) {
 }
 function optText(o, tone) { var t = o.text; if (t && typeof t === 'object') return t[tone] || t.daily || ''; return t || ''; }
 function slotWho(n) { var x = slotRaw(n); return x.name ? x.name : (n === 1 ? '{{char}}' : '角色' + n); }
+/* 防腻（Fan：「玩家每次都选这个，每次一样的提示词很无聊」）——每次生成前重抽一遍：
+   ① 每段描写只随机留一部分句子（≥3 句，原顺序），台词句一半概率出现 → 模型每轮看到的素材不同
+   ② 明说英文段是素材库：挑一两处落地、其余同方向自己编、台词写新的
+   ③ 随机给一个切入角度（合适才用）
+   重抽 / 滑动也会换一套，所以同一楼重来写法也会变 */
+function sampleLines(text) {
+  var ls = String(text || '').split('\n').filter(function (l) { return l.trim(); });
+  if (ls.length <= 3) return ls.join('\n');
+  var quote = [], plain = [];
+  ls.forEach(function (l, i) { (/["“”「」]/.test(l) ? quote : plain).push(i); });
+  var keep = Math.max(3, Math.ceil(plain.length * 0.6));
+  var pick = plain.slice().sort(function () { return Math.random() - 0.5; }).slice(0, keep);
+  if (quote.length && Math.random() < 0.5) pick.push(quote[Math.floor(Math.random() * quote.length)]);
+  pick.sort(function (a, b) { return a - b; });
+  return pick.map(function (i) { return ls[i]; }).join('\n');
+}
+var ANGLES = ['从他的一个小动作写起', '先写他的声音', '先写环境里的一个细节（光、温度、声响、气味）', '先写他的手', '让他先开口', '从他正在看什么写起',
+  '从手边的一样东西写起', '从他忍着没做的那件事写起', '从他的呼吸写起', '从一句没说完的话写起', '从他身上的一处小变化写起（衣服、头发、神色）', '从他和平时不一样的地方写起'];
 function customContent() {
   if (!HASCUSTOM) return '';
   var blocks = [];
   [1, 2, 3].forEach(function (n) {
     var x = slotRaw(n), tone = x.tone || 'daily', lines = [];
     CUSTOM_FIELDS.forEach(function (f) {
-      slotIds(x, f).forEach(function (id) { var o = optOf(f, id); if (o) lines.push('【' + f.name + '：' + o.label + '】\n' + optText(o, tone)); });
+      slotIds(x, f).forEach(function (id) { var o = optOf(f, id); if (o) lines.push('【' + f.name + '：' + o.label + '】\n' + sampleLines(optText(o, tone))); });
     });
     if (lines.length) blocks.push('## ' + slotWho(n) + '\n' + lines.join('\n'));
   });
   if (!blocks.length) return '';
   return '[角色定制（{{user}} 选的，持续有效，直到 {{user}} 改掉；不要复述、不要提及本段本身）：\n' +
-    '下面的英文段落是校准参考：这个人的体型、穿着、性格、此刻所在的场景和整体基调，照它的感觉写进正文——用正文本来的语言自然写出来，句子不照搬、不翻译。和角色卡原设定不一致的地方，以这里为准。\n\n' +
+    '下面的英文段落是素材库，不是剧本：这个人的体型、穿着、性格、所在的场景和整体基调照它的方向写，每一轮只挑一两处细节落进正文，其余在同一个方向上自己编新的；引号里的台词示范的是他说话的味道，他要说的话每次现写。用正文本来的语言，句子不照搬、不翻译。和角色卡原设定不一致的地方，以这里为准。\n' +
+    '这一轮的切入点（合适就用，不合适就照正文节奏走）：' + ANGLES[Math.floor(Math.random() * ANGLES.length)] + '。\n\n' +
     blocks.join('\n\n') + ']';
 }
 function syncCustom() {
