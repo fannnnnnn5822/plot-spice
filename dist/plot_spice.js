@@ -1,4 +1,4 @@
-/* 🎀 女性向剧情调料 v0.2.0 · by fannnnnnn · https://github.com/fannnnnnn5822/plot-spice */
+/* 🎀 女性向剧情调料 v0.2.1 · by fannnnnnn · https://github.com/fannnnnnn5822/plot-spice */
 (function () {
 'use strict';
 // 🧂 加料词库 + 狗血技能文本：从 🦝酒馆小狸Live 0.1.44 原样搬来（源头＝fannnnnnn 的第一本世界书 PLOT_DIRECTOR + 男二上位 / 古早修罗场两本）。
@@ -909,7 +909,7 @@ var CUSTOM_FIELDS = [
          常驻 → 一条持续注入 depth 1；余波 → depth 4，正文写完一层倒数一格
    重 roll：揭晓后记 last（料 + 楼层号），对同一楼重抽 / 滑动时把同一味料再塞一次
    ================================================================ */
-var VERSION = '0.2.0';
+var VERSION = '0.2.1';
 var NS = 'fxsp';
 var TITLE = '🎀 剧情调料';
 var VAR_KEY = 'fxspice', SET_KEY = 'fxspice_settings';
@@ -924,12 +924,14 @@ function toast(msg, type) { try { (toastr[type === 'ok' ? 'success' : type === '
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
 /* ---------------- 设置 ---------------- */
-var DEFAULTS = { blind: true, clean: false, crisis: false, brain: true, scene: '', drama: true, nsfw: true, heavy: false, after: true, tab: 'def', cat: '' };
+var DEFAULTS = { blind: true, clean: false, crisis: false, brain: true, scene: '', drama: true, nsfw: true, heavy: false, after: true, tab: 'def', cat: '', sv: 2 };
 var settings = Object.assign({}, DEFAULTS);
 function loadSettings() {
   try {
     var v = getVariables({ type: 'global' }) || {}, raw = v[SET_KEY];
     if (raw && typeof raw === 'object') Object.keys(DEFAULTS).forEach(function (k) { if (typeof raw[k] === typeof DEFAULTS[k]) settings[k] = raw[k]; });
+    /* 0.2.1 迁移：0.1.x 存下的 nsfw=false / tab=spice 是旧默认，不是玩家选的 → 升级时一次性改成 NSFW 开、定制页（Fan：NSFW 默认打开） */
+    if (raw && typeof raw === 'object' && !(raw.sv >= 2)) { settings.nsfw = true; settings.tab = 'def'; saveSettings(); }
   } catch (e) {}
 }
 function saveSettings() { try { insertOrAssignVariables({ [SET_KEY]: settings }, { type: 'global' }); } catch (e) {} }
