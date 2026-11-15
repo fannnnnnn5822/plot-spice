@@ -1,4 +1,4 @@
-/* 🎀 微醺特调 v0.3.2 · by fannnnnnn · https://github.com/fannnnnnn5822/plot-spice */
+/* 🎀 微醺特调 v0.3.3 · by fannnnnnn · https://github.com/fannnnnnn5822/plot-spice */
 (function () {
 'use strict';
 // 🧂 加料词库 + 狗血技能文本：从 🦝酒馆小狸Live 0.1.44 原样搬来（源头＝fannnnnnn 的第一本世界书 PLOT_DIRECTOR + 男二上位 / 古早修罗场两本）。
@@ -1219,7 +1219,7 @@ var CUSTOM_FIELDS = [
          常驻 → 一条持续注入 depth 1；余波 → depth 4，正文写完一层倒数一格
    重 roll：揭晓后记 last（料 + 楼层号），对同一楼重抽 / 滑动时把同一味料再塞一次
    ================================================================ */
-var VERSION = '0.3.2';
+var VERSION = '0.3.3';
 var NS = 'fxsp';
 var TITLE = '🎀 微醺特调';
 var VAR_KEY = 'fxspice', SET_KEY = 'fxspice_settings';
@@ -1362,8 +1362,8 @@ function onceContent(pd) {
       '让它从当前场景里自然长出来，贴合眼下的人物关系和上文埋下的细节，而不是凭空砸下来。\n' +
       (SPICE_LAW[pd.law] || '') + '\n' + SPICE_GUIDE + ']';
   }
-  if (pd.kind === 'card') return HEAD + '这一轮的剧情走向——「' + pd.title + '」。\n' + pd.text + '\n' + CARD_TAIL + ']';
-  return '[幕后指令（来自 {{user}} 的剧情要求，不要复述、不要提及本段本身）：这一轮请把这件事写进去——' + pd.text + '\n' + CARD_TAIL + ']';
+  if (pd.kind === 'card') return HEAD + '这一轮的剧情走向——「' + pd.title + '」。\n' + spin(pd.text) + '\n' + CARD_TAIL + ']';
+  return '[幕后指令（来自 {{user}} 的剧情要求，不要复述、不要提及本段本身）：这一轮请把这件事写进去——' + spin(pd.text) +'\n' + CARD_TAIL + ']';
 }
 function injectOnce(pd) {
   try { uninjectPrompts([ID_ONCE]); } catch (e) {}
@@ -1393,8 +1393,20 @@ function slotWho(n) { var x = slotRaw(n); return x.name ? x.name : (n === 1 ? '{
    ② 明说英文段是素材库：挑一两处落地、其余同方向自己编、台词写新的
    ③ 随机给一个切入角度（合适才用）
    重抽 / 滑动也会换一套，所以同一楼重来写法也会变 */
+/* 🎲 大括号随机（Fan 11-14 提议）：选项文字里写 {a|b|c}，每次生成随机挑一个；可以套娃 {a {x|y}|b}。
+   只认单层大括号且里面有 | 的——酒馆宏 {{char}} 是双大括号，不会被当成随机。 */
+function spin(text) {
+  /* {a|b|c} 每次抽一个，可以套娃；{{char}} 这类酒馆宏先藏起来不碰；全角｜也认 */
+  var keep = [], s = String(text || '').replace(/\{\{[\s\S]*?\}\}/g, function (x) { keep.push(x); return '\u0000' + (keep.length - 1) + '\u0000'; });
+  var re = /\{([^{}]*[|｜][^{}]*)\}/, m, n = 0;
+  while ((m = re.exec(s)) && n++ < 500) {
+    var parts = m[1].split(/[|｜]/);
+    s = s.slice(0, m.index) + parts[Math.floor(Math.random() * parts.length)] + s.slice(m.index + m[0].length);
+  }
+  return s.replace(/\u0000(\d+)\u0000/g, function (x, i) { return keep[+i]; });
+}
 function sampleLines(text) {
-  var ls = String(text || '').split('\n').filter(function (l) { return l.trim(); });
+  var ls = spin(text).split('\n').filter(function (l) { return l.trim(); });
   if (ls.length <= 3) return ls.join('\n');
   var quote = [], plain = [];
   ls.forEach(function (l, i) { (/["“”「」]/.test(l) ? quote : plain).push(i); });
@@ -1404,8 +1416,27 @@ function sampleLines(text) {
   pick.sort(function (a, b) { return a - b; });
   return pick.map(function (i) { return ls[i]; }).join('\n');
 }
-var ANGLES = ['从他的一个小动作写起', '先写他的声音', '先写环境里的一个细节（光、温度、声响、气味）', '先写他的手', '让他先开口', '从他正在看什么写起',
-  '从手边的一样东西写起', '从他忍着没做的那件事写起', '从他的呼吸写起', '从一句没说完的话写起', '从他身上的一处小变化写起（衣服、头发、神色）', '从他和平时不一样的地方写起'];
+/* 拍子：每轮每行抽一个，给的是「这一轮怎么写」的指令（不是素材），专门打散模型自己的默认套路（同一句台词、同一串动作） */
+var BEATS = [
+  { k: '开场', all: ['从他的一个小动作写起', '先写他的声音', '先写环境里的一个细节（光、温度、声响、气味）', '先写他的手', '从他正在看什么写起',
+    '从手边的一样东西写起', '从他忍着没做的那件事写起', '从他的呼吸写起', '从他身上的一处小变化写起（衣服、头发、神色）', '从他和平时不一样的地方写起', '从她自己身体的一个反应写起'] },
+  { k: '他开口的第一句', daily: ['一个问句', '一句玩笑', '叫她的名字', '一句跟眼前无关的话（白天的事、别人的事）', '接着上一轮没说完的话', '先不说话，用动作代替', '反问她刚才那句'],
+    flirt: ['一个明知故问的问句', '一句逗她的话', '低声叫她的名字', '一句很短的要求', '先不说话，用动作代替', '一句假装正经的话', '把她刚才的话原样还给她'],
+    nsfw: ['一个明知故问的问句', '一句很短的命令', '叫她的名字', '一句具体到某处的夸奖', '一句坏话，故意逗她', '先不说话，只有动作和呼吸', '一句跟眼前不相干的话，反差越大越好', '让她自己说出来她要什么'] },
+  { k: '节奏', all: ['很慢，一个动作写透', '先急，然后硬生生停住', '被一个小意外打断（手机、敲门、东西掉了、有人笑场）', '他犹豫了一下才动', '她先动，他接', '一直很稳，最后一下突然变了'] },
+  { k: '他先碰的地方', flirt: ['只靠近，不碰', '指尖碰到又收回', '替她理头发或衣领', '她的手腕', '她的下巴', '她的后颈'],
+    nsfw: ['她的头发', '后颈', '手腕', '下巴', '腰侧', '膝盖', '耳垂', '用拇指碰她的嘴唇', '先不碰，只看'] },
+  { k: '收尾', all: ['停在他的一句话上', '停在一个动作上', '停在一个留给她回答的问题上', '停在一个还没做完的动作上', '停在她的感觉上'] }
+];
+var TONE_RANK = { daily: 0, flirt: 1, nsfw: 2 };
+function beatsText() {
+  var tone = 'daily';
+  [1, 2, 3].forEach(function (n) { var t = slotRaw(n).tone; if (slotHas(n) && t && TONE_RANK[t] > TONE_RANK[tone]) tone = t; });
+  return BEATS.map(function (b) {
+    var arr = b[tone] || b.all; if (!arr) return '';
+    return '- ' + b.k + '：' + arr[Math.floor(Math.random() * arr.length)];
+  }).filter(Boolean).join('\n');
+}
 function customContent() {
   if (!HASCUSTOM) return '';
   var blocks = [];
@@ -1419,7 +1450,7 @@ function customContent() {
   if (!blocks.length) return '';
   return '[角色定制（{{user}} 选的，持续有效，直到 {{user}} 改掉；不要复述、不要提及本段本身）：\n' +
     '下面的英文段落是素材库，不是剧本：这个人的体型、穿着、性格、所在的场景和整体基调照它的方向写，每一轮只挑一两处细节落进正文，其余在同一个方向上自己编新的；引号里的台词示范的是他说话的味道，他要说的话每次现写。用正文本来的语言，句子不照搬、不翻译。和角色卡原设定不一致的地方，以这里为准。\n' +
-    '这一轮的切入点（合适就用，不合适就照正文节奏走）：' + ANGLES[Math.floor(Math.random() * ANGLES.length)] + '。\n\n' +
+    '这一轮的写法（每轮随机抽，为的是同样的设定每次写出来都不一样；照着写，只有跟正文眼下的进展明显不搭的那一行才跳过）：\n' + beatsText() + '\n\n' +
     blocks.join('\n\n') + ']';
 }
 function syncCustom() {
@@ -1440,7 +1471,7 @@ function syncPins() {
   if (!pins.length) return;
   var body = pins.map(function (p) {
     var own = p.text.indexOf(String(p.title).replace(/…$/, '')) === 0;   // 自己写的：标题就是正文截的头，不重复
-    return '- ' + (own ? '' : '「' + p.title + '」') + p.text;
+    return '- ' + (own ? '' : '「' + p.title + '」') + spin(p.text);
   }).join('\n');
   try {
     injectPrompts([{ id: ID_PIN, position: 'in_chat', depth: 1, role: 'system', should_scan: false,
@@ -1690,10 +1721,14 @@ function place() {
   var left = vw <= 520 ? 8 : Math.max(8, Math.min(r.right - w, vw - w - 8));
   if (vw <= 520) w = vw - 16;
   p.style.width = w + 'px';
-  p.style.maxHeight = Math.max(240, Math.min(r.top - 16, 560)) + 'px';
+  /* 发送栏上面地方够就贴在它上面；不够（iOS 键盘弹起、矮屏）就用可见区域的高度，盖住发送栏也没关系 */
+  var vv = P.visualViewport, vt = vv ? vv.offsetTop : 0, vhh = vv ? vv.height : vh;
+  var room = r.top - vt - 16, above = room >= 380;
+  p.style.maxHeight = Math.max(240, Math.min(560, above ? room : vhh - 16)) + 'px';
   p.style.bottom = 'auto';
   p.style.left = left + 'px';
-  var top = Math.max(8, r.top - 8 - p.offsetHeight);
+  var bottomLine = above ? r.top - 8 : vt + vhh - 8;
+  var top = Math.max(vt + 8, bottomLine - p.offsetHeight);
   p.style.top = top + 'px';
   /* 手机布局里酒馆的祖先元素会变成 fixed 的参照物（坐标不从视口算）→ 量一下实际落点，差多少补多少 */
   var got = p.getBoundingClientRect();
@@ -1701,7 +1736,8 @@ function place() {
   if (Math.abs(got.left - left) > 1) p.style.left = (left + left - got.left) + 'px';
 }
 function toggle() { var p = panel(); if (p.classList.contains('open')) close(); else open(); }
-function open() { var p = panel(); render(); p.classList.add('open'); place(); }
+/* iOS：点按钮时键盘正在收起，第一次量到的高度是半截的 → 等动画走完再量两次 */
+function open() { var p = panel(); render(); p.classList.add('open'); place(); [350, 900].forEach(function (ms) { setTimeout(function () { if (p.classList.contains('open')) place(); }, ms); }); }
 function close() { var p = DOC.getElementById(NS + '-panel'); if (p) p.classList.remove('open'); }
 
 function statusHtml() {
@@ -1913,8 +1949,9 @@ function start() {
     close();
   };
   DOC.addEventListener('click', docClick, true);
-  onResize = function () { place(); };
+  onResize = function () { if (DOC.querySelector('#' + NS + '-panel.open')) place(); };
   P.addEventListener('resize', onResize);
+  try { if (P.visualViewport) P.visualViewport.addEventListener('resize', onResize); } catch (e) {}
   try {
     eventOn(tavern_events.GENERATION_AFTER_COMMANDS, beforeGen);
     eventOn(tavern_events.GENERATION_ENDED, function () { setTimeout(function () { try { tick(); } catch (e) {} }, 900); });
@@ -1928,9 +1965,9 @@ function start() {
 function stop() {
   timers.forEach(function (t) { clearTimeout(t); clearInterval(t); });
   try { if (docClick) DOC.removeEventListener('click', docClick, true); } catch (e) {}
-  try { if (onResize) P.removeEventListener('resize', onResize); } catch (e) {}
+  try { if (onResize) { P.removeEventListener('resize', onResize); if (P.visualViewport) P.visualViewport.removeEventListener('resize', onResize); } } catch (e) {}
   ['-btn', '-panel', '-css'].forEach(function (k) { var n = DOC.getElementById(NS + k); if (n) n.remove(); });
-  try { uninjectPrompts([ID_ONCE, ID_PIN, ID_AFTER]); } catch (e) {}
+  try { uninjectPrompts([ID_ONCE, ID_PIN, ID_AFTER, ID_CUSTOM]); } catch (e) {}
 }
 try { if (P['__' + NS + '_stop']) P['__' + NS + '_stop'](); } catch (e) {}   // 旧实例（重载脚本时）先收干净
 P['__' + NS + '_stop'] = stop;
