@@ -1,4 +1,4 @@
-/* 🎀 微醺特调 v0.3.3 · by fannnnnnn · https://github.com/fannnnnnn5822/plot-spice */
+/* 🎀 微醺特调 v0.3.4 · by fannnnnnn · https://github.com/fannnnnnn5822/plot-spice */
 (function () {
 'use strict';
 // 🧂 加料词库 + 狗血技能文本：从 🦝酒馆小狸Live 0.1.44 原样搬来（源头＝fannnnnnn 的第一本世界书 PLOT_DIRECTOR + 男二上位 / 古早修罗场两本）。
@@ -1219,7 +1219,7 @@ var CUSTOM_FIELDS = [
          常驻 → 一条持续注入 depth 1；余波 → depth 4，正文写完一层倒数一格
    重 roll：揭晓后记 last（料 + 楼层号），对同一楼重抽 / 滑动时把同一味料再塞一次
    ================================================================ */
-var VERSION = '0.3.3';
+var VERSION = '0.3.4';
 var NS = 'fxsp';
 var TITLE = '🎀 微醺特调';
 var VAR_KEY = 'fxspice', SET_KEY = 'fxspice_settings';
@@ -1234,7 +1234,7 @@ function toast(msg, type) { try { (toastr[type === 'ok' ? 'success' : type === '
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
 /* ---------------- 设置 ---------------- */
-var DEFAULTS = { blind: true, clean: false, crisis: false, brain: true, scene: '', drama: true, nsfw: true, heavy: false, after: true, tab: 'def', cat: '', sv: 2 };
+var DEFAULTS = { blind: true, clean: false, crisis: false, brain: true, scene: '', drama: true, nsfw: true, heavy: false, after: true, tab: 'def', cat: '', sv: 2, entry: 'send' };
 var settings = Object.assign({}, DEFAULTS);
 function loadSettings() {
   try {
@@ -1684,17 +1684,37 @@ function mountButton() {
   updateBtn();
   return true;
 }
-/* 找不到发送栏（极少数主题/插件把它换掉了）→ 退回酒馆助手脚本按钮，QR 整合插件也认得 */
-function mountScriptButton() {
+/* 入口的第二种：酒馆助手脚本按钮，出现在输入框上面那排 QR 按钮里（发送栏挤的玩家在 ⚙️ 里选；找不到发送栏也退回这里） */
+var btnEvBound = false;
+function isOurQr(el) { var q = el && el.closest ? el.closest('.qr--button') : null; return !!(q && q.textContent.trim() === TITLE); }
+function qrToggle() { toggle(); }
+function setScriptButton(show) {
   try {
-    if (typeof appendInexistentScriptButtons !== 'function') return;
-    if (typeof eventOn === 'function' && typeof getButtonEvent === 'function') eventOn(getButtonEvent(TITLE), toggle);
-    else if (typeof eventOnButton === 'function') eventOnButton(TITLE, toggle);
-    else return;
-    appendInexistentScriptButtons([{ name: TITLE, visible: true }]);
-    usingScriptButton = true;
-    log('入口＝酒馆助手脚本按钮（没找到发送栏）');
-  } catch (e) {}
+    if (show && !btnEvBound) {
+      if (typeof eventOn === 'function' && typeof getButtonEvent === 'function') eventOn(getButtonEvent(TITLE), qrToggle);
+      else if (typeof eventOnButton === 'function') eventOnButton(TITLE, qrToggle);
+      else return false;
+      btnEvBound = true;
+    }
+    var cur = typeof getScriptButtons === 'function' ? getScriptButtons() : null;
+    var has = !!(cur && cur.some(function (x) { return x.name === TITLE && x.visible; }));
+    if (cur && has === show) return true;
+    if (typeof replaceScriptButtons === 'function') replaceScriptButtons(show ? [{ name: TITLE, visible: true }] : []);
+    else if (show && typeof appendInexistentScriptButtons === 'function') appendInexistentScriptButtons([{ name: TITLE, visible: true }]);
+    else return !show;
+    return true;
+  } catch (e) { return false; }
+}
+function mountScriptButton() {
+  usingScriptButton = setScriptButton(true);
+  if (usingScriptButton) log('入口＝QR 栏里的脚本按钮' + (settings.entry === 'qr' ? '' : '（没找到发送栏）'));
+  return usingScriptButton;
+}
+function applyEntry() {
+  if (settings.entry === 'qr') {
+    if (mountScriptButton()) { var b = DOC.getElementById(NS + '-btn'); if (b) b.remove(); }
+    else mountButton();   // 酒馆助手太旧、没有脚本按钮接口 → 还是坐在发送键旁边
+  } else if (mountButton()) { usingScriptButton = false; setScriptButton(false); }
 }
 function updateBtn() {
   var b = DOC.getElementById(NS + '-btn'); if (!b) return;
@@ -1862,6 +1882,9 @@ function pickOpt(fid, oid) {
 function setHtml() {
   function row(k, name, sub) { return '<label><span>' + name + (sub ? '<em>' + sub + '</em>' : '') + '</span><button class="fx-pill' + (settings[k] ? ' on' : '') + '" data-set="' + k + '">' + (settings[k] ? '开' : '关') + '</button></label>'; }
   return '<div class="fx-set">' +
+    '<label><span>入口放哪<em>发送键旁＝输入框右边的 🍸 键；QR 栏＝输入框上面那排快捷按钮（发送栏挤的选这个）</em></span></label><div class="fx-row">' +
+    [['send', '🍸 发送键旁'], ['qr', '⚡ QR 按钮栏']].map(function (x) { return '<button class="fx-pill' + (settings.entry === x[0] ? ' on' : '') + '" data-entry="' + x[0] + '">' + x[1] + '</button>'; }).join('') +
+    '</div>' +
     row('blind', '盲盒', '🧂 加料点完先不说抽到什么，正文写完才揭晓') +
     row('drama', '显示狗血键', '🌙 男二 👠 女配 🥀 男配 ⚔️ 雄竞 💅 雌竞') +
     row('clean', '🌶️ 洁党版', '酸涩只来自现实和在乎，没有前任/第三者') +
@@ -1899,6 +1922,11 @@ function bindPanel(p) {
   p.querySelectorAll('[data-unpin]').forEach(function (x) { x.addEventListener('click', function () { unpin(this.getAttribute('data-unpin')); }); });
   p.querySelectorAll('[data-set]').forEach(function (x) { x.addEventListener('click', function () { var k = this.getAttribute('data-set'); settings[k] = !settings[k]; saveSettings(); if (k === 'after') syncAfter(); render(); }); });
   p.querySelectorAll('[data-scene]').forEach(function (x) { x.addEventListener('click', function () { settings.scene = this.getAttribute('data-scene') || ''; saveSettings(); render(); }); });
+  p.querySelectorAll('[data-entry]').forEach(function (x) { x.addEventListener('click', function () {
+    var v = this.getAttribute('data-entry'); if (v === settings.entry) return;
+    settings.entry = v; saveSettings(); applyEntry(); render();
+    toast(v === 'qr' ? '入口换到输入框上面的 QR 按钮栏了' : '入口回到发送键旁边了', 'success');
+  }); });
   p.querySelectorAll('[data-slot]').forEach(function (x) { x.addEventListener('click', function () { curSlot = +this.getAttribute('data-slot'); openField = ''; render(); }); });
   p.querySelectorAll('[data-field]').forEach(function (x) { x.addEventListener('click', function () { var f = this.getAttribute('data-field'); openField = openField === f ? '' : f; render(); }); });
   p.querySelectorAll('[data-fclr]').forEach(function (x) { x.addEventListener('click', function () { var f = this.getAttribute('data-fclr'); slotSet(curSlot, function (s) { s[f] = null; }); render(); }); });
@@ -1935,8 +1963,9 @@ function start() {
   loadSettings();
   injectCss();
   var tries = 0;
-  (function retry() {
-    if (mountButton()) return;
+  if (settings.entry === 'qr') applyEntry();
+  else (function retry() {
+    if (mountButton()) { setScriptButton(false); return; }
     if (++tries >= 10) { mountScriptButton(); return; }
     timers.push(setTimeout(retry, 800));
   })();
@@ -1945,7 +1974,7 @@ function start() {
   docClick = function (e) {
     var p = DOC.getElementById(NS + '-panel'), b = DOC.getElementById(NS + '-btn');
     if (!p || !p.classList.contains('open')) return;
-    if (p.contains(e.target) || (b && b.contains(e.target))) return;
+    if (p.contains(e.target) || (b && b.contains(e.target)) || isOurQr(e.target)) return;   // 点自己的 QR 键交给 qrToggle 去开关
     close();
   };
   DOC.addEventListener('click', docClick, true);
